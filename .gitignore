@@ -1,0 +1,19 @@
+# 日志
+*.log
+startup_stdout.log
+startup_stderr.log
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 内部备份（含本地路径和配置快照）
+_backups/
+*.bak*
+
+# 项目日志（内部开发记录）
+PROJECT_LOG.md
+
+# 系统文件
+Thumbs.db
+.DS_Store
