@@ -302,6 +302,7 @@ export function startApp() {
     cwd: PY_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],
     env,
+    windowsHide: true,
   });
 
   appProcess.stdout?.on('data', (d) => {
@@ -375,7 +376,7 @@ export async function checkDeps() {
   const python = detectPython();
   const deps = ['mss', 'PIL', 'httpx', 'PyQt6'];
   for (const dep of deps) {
-    const p = spawn(python, ['-c', `import ${dep}`], { stdio: 'ignore' });
+    const p = spawn(python, ['-c', `import ${dep}`], { stdio: 'ignore', windowsHide: true });
     const code = await new Promise(r => p.on('exit', r));
     if (code !== 0) return { ok: false, missing: dep };
   }
