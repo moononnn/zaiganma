@@ -341,23 +341,6 @@ export function getState() {
 export { loadCfg };
 
 // ═══════════════════════════════
-//  配置同步到小程序
-// ═══════════════════════════════
-async function syncToApp() {
-  try {
-    const resp = await fetch(`http://127.0.0.1:${APP_PORT}/config/reload`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(state),
-      signal: AbortSignal.timeout(3000),
-    });
-    return resp.ok;
-  } catch (e) {
-    // 小程序可能还没启动，静默忽略
-  }
-}
-
-// ═══════════════════════════════
 //  HTTP 通信辅助
 // ═══════════════════════════════
 export async function appFetch(path, opts = {}) {

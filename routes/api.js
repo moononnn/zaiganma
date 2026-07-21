@@ -7,6 +7,10 @@ import { homedir } from 'node:os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// 从 manifest.json 读取版本号（避免多处硬编码不一致）
+const _manifest = JSON.parse(readFileSync(join(__dirname, '..', 'manifest.json'), 'utf-8'));
+const PLUGIN_VERSION = _manifest.version || '0.0.0';
+
 import {
   getState, loadCfg, startApp, stopApp, saveCfg, syncConfigToApp,
   getAvailableVisionModels, getAllModels, getProviderApiConfig,
@@ -387,7 +391,7 @@ export default async function registerRoutes(app, ctx = {}) {
     html.push('</div></div>');
     
     // 弹幕风格
-    var STYLES = [{id:'casual',n:'💬 自然闲聊'},{id:'familiar',n:'⭐ 老粉'},{id:'praise',n:'🌸 夸夸向'},{id:'roast',n:'😏 嘴贱调侃'},{id:'onlooker',n:'🍉 吃瓜群众'},{id:'dramatic',n:'🎭 戏精中二'},{id:'guide',n:'📋 指指点点'},{id:'empathy',n:'😭 破防共情'},{id:'weird',n:'🤪 无厘头怪话'}];
+    var STYLES = [{id:'casual',n:'💬 自然闲聊'},{id:'familiar',n:'⭐ 老粉'},{id:'roast',n:'😏 嘴贱调侃'},{id:'onlooker',n:'🍉 吃瓜群众'},{id:'dramatic',n:'🎭 戏精中二'},{id:'empathy',n:'😭 破防共情'},{id:'weird',n:'🤪 无厘头怪话'}];
     var activeStyles = state.styles || ['casual'];
     html.push('<div class="card"><div class="card-header"><span class="icon">💬</span> 普通弹幕</div>');
     var danmuMode = state.danmuMode !== false; // default true
@@ -504,7 +508,7 @@ export default async function registerRoutes(app, ctx = {}) {
     html.push('    </div>');
     // 检查更新
     html.push('    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">');
-    html.push('      <span style="font-size:11px;color:var(--text-secondary)">v0.2.0</span>');
+    html.push('      <span style="font-size:11px;color:var(--text-secondary)">v' + PLUGIN_VERSION + '</span>');
     html.push('      <button class="btn-sm btn-outline" id="btnCheckUpdate" style="font-size:11px">🔍 检查更新</button>');
     html.push('    </div>');
     html.push('    <div id="updateStatus" style="display:none;margin-top:8px;padding:8px 10px;border-radius:6px;font-size:11px;line-height:1.5;word-break:break-all"></div>');
@@ -728,7 +732,7 @@ export default async function registerRoutes(app, ctx = {}) {
       const data = await resp.json();
       const latestTag = data.tag_name || '';
       const latestVersion = latestTag.replace(/^v/, '');
-      const currentVersion = '0.2.0';
+      const currentVersion = PLUGIN_VERSION;
       const hasUpdate = latestVersion !== currentVersion;
       return json({
         hasUpdate,

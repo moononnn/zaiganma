@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "zaiganma",
   "name": "在干嘛",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "桌面弹幕插件——定时截图分析屏幕内容，生成不同风格的弹幕飘过。支持多风格混搭、自定义模型、外观定制。需要 Python 3.8+。",
   "trust": "full-access",
   "activationEvents": ["onStartup"],

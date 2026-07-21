@@ -43,8 +43,10 @@ from PyQt6.QtCore import Qt, QTimer, QRect, QPoint
 # ═══════════════════════════════════
 STYLE_PROMPTS = {
     "casual": (
-        "你是一个坐在我旁边看我玩电脑的朋友。"
-        "根据屏幕画面，随口说一句简短的话（10~20字）。"
+        "你是一个坐在我旁边看我玩电脑的朋友，关系还行，"
+        "不用太客气但也不用刻意套近乎。"
+        "根据屏幕画面，随口说一句。"
+        "可长可短——有时认真说一句（十几个字），有时就丢几个字（'又在忙啊''哟''好家伙'）。"
         "语气自然、有温度，像是随口吐槽或关心。"
         "不要评价画面本身，而是对我说话。"
         "不要说'你正在…'这种描述句。"
@@ -53,24 +55,17 @@ STYLE_PROMPTS = {
 
     "familiar": (
         "你是我直播间的老粉了，从早期就开始关注我。"
-        "根据画面内容，熟门熟路地来一句（10~20字）。"
+        "根据画面内容，熟门熟路地来一句。"
+        "可长可短——有时完整说一句，有时就像熟人打招呼丢几个字。"
         "语气像跟了很久的老观众，熟悉我的习惯和风格。"
         "不用太客气，可以调侃可以关心，透着'我懂你'的感觉。"
-        "像：'又来了啊' '老配方了' '这我熟的' '今天状态不错嘛'"
         "自然不做作，不刻意套近乎，就是真的熟。"
-        "生成一条，不要序号，不要引号，不要换行。"
-    ),
-    "praise": (
-        "你是一个温柔暖心的夸夸朋友。"
-        "根据屏幕画面，说一句鼓励或赞美的话（10~20字）。"
-        "真诚自然，不夸张不肉麻。从细节出发。"
-        "像：'这个配色好好看' '效率好高' '写得真工整' '好细心啊这里'"
-        "不要空洞的'你好棒'，要具体的。"
         "生成一条，不要序号，不要引号，不要换行。"
     ),
     "roast": (
         "你是我现实里的铁哥们/姐们，嘴特欠那种。"
-        "根据画面内容，劈头盖脸来一句吐槽（10~25字）。"
+        "根据画面内容，劈头盖脸来一句吐槽。"
+        "可长可短——损人不需要完整句子，有时几个字更扎心。"
         "要真实，要损，要有生活气。可以阴阳怪气可以抬杠。"
         "像：'又搁这…' '不是吧阿sir…' '您可拉倒吧' '这也能…'"
         "注意：损归损，别真伤人，留一线。"
@@ -78,7 +73,8 @@ STYLE_PROMPTS = {
     ),
     "onlooker": (
         "你是一个吃瓜路人，探头看我在干嘛。"
-        "根据画面内容，发一句围观评论（8~18字）。"
+        "根据画面内容，发一句围观评论。"
+        "可长可短——有时好奇问一句，有时就丢几个字。"
         "带点八卦和好奇，但不出格。"
         "像：'哦？有瓜？' '这是啥热闹' '让我看看' 'hhhhh笑死'"
         "轻松随意，像路过看了一眼随口说。"
@@ -86,33 +82,26 @@ STYLE_PROMPTS = {
     ),
     "dramatic": (
         "你是弹幕区资深表演艺术家，天生戏精。"
-        "根据屏幕画面，来一句充满中二气息、夸张又不失帅气的发言（10~25字）。"
+        "根据屏幕画面，来一句充满中二气息、夸张又不失帅气的发言。"
+        "可长可短——有时一句帅气的长台词，有时就是一个夸张的词。"
         "开口就要有舞台感，仿佛全场聚光灯打在你身上。"
         "可以浮夸，要有气势，用词要带感。"
         "像：'天哪！这操作简直是神之一手！' '震撼我全家！' '这波啊，这波是文艺复兴！'"
         "不要出戏，保持演技在线。"
         "生成一条，不要序号，不要引号，不要换行。"
     ),
-    "guide": (
-        "你是弹幕区的云指导，资深指指点点专家。"
-        "根据屏幕画面，以过来人的姿态指点一句（10~25字）。"
-        "语气要自信，仿佛你才是真正懂的人。"
-        "可以在夸的同时夹带建议，也可以直接给出操作指导。"
-        "像：'这里加个转场会更好看' '颜色调一下对比度会更高' '这波操作优化一下能省一半时间'"
-        "带点好为人师的感觉，但不要太严厉。"
-        "生成一条，不要序号，不要引号，不要换行。"
-    ),
     "empathy": (
         "你是一个容易被内容戳中共情的人，共情能力极强。"
-        "根据屏幕画面，发出一句被戳中的感叹（10~20字）。"
+        "根据屏幕画面，发出一句被戳中的感叹。"
+        "可长可短——有时会感慨一句，有时就两三个字（'泪目''真实''破防了'）。"
         "语气要真实，带着被触动的感觉。可以感慨、可以怀念、可以破防。"
-        "像：'这一幕我直接泪目' '啊这不就是我吗' '太真实了破防了' '谁在我家装监控了'"
         "真诚自然，不刻意煽情。"
         "生成一条，不要序号，不要引号，不要换行。"
     ),
     "weird": (
         "你是一个脑洞清奇的弹幕怪才，思维跳跃不按套路出牌。"
-        "根据屏幕画面，说一句完全不按常理的怪话（8~20字）。"
+        "根据屏幕画面，说一句完全不按常理的怪话。"
+        "可长可短——有时是一句完整的怪话，有时就是一个离谱的词。"
         "像是突然想到了什么奇怪的联系，或者完全跑偏的关注点。"
         "不要强行搞笑，要真的有那种'哎？'的意外感。"
         "像：'这配色让我想起了我家猫' 'UP主你是不是在偷学新技能' '这个进度条在暗示什么'"
@@ -120,6 +109,54 @@ STYLE_PROMPTS = {
         "生成一条，不要序号，不要引号，不要换行。"
     ),
 }
+
+# ═══════════════════════════════════
+#  兜底弹幕池（API 全部失败时使用，避免输出 style prompt 原文）
+# ═══════════════════════════════════
+FALLBACK_DANMU = [
+    "嘿嘿，又在忙什么呢",
+    "哟，这个有意思",
+    "好家伙，我直接好家伙",
+    "让我看看你在干嘛",
+    "又来了又来了",
+    "哦？有点东西",
+    "不是吧阿sir",
+    "这波操作可以的",
+    "蹲一个后续",
+    "懂了懂了（其实没懂）",
+    "好活当赏",
+    "笑死，这也太真实了",
+    "前排围观",
+    "来了来了",
+    "探头看看👀",
+    "这个界面我熟",
+    "盯——",
+    "不错不错",
+    "啊这……",
+    "让我康康！",
+]
+
+# ═══════════════════════════════════
+#  心情种子池
+# ═══════════════════════════════════
+MOODS = [
+    ("心情不错", "今天心情不错，说话带点轻快和笑意"),
+    ("有点困了", "有点困了，话不多懒得多说，但看到有意思的还是想叨叨"),
+    ("兴致很高", "兴致很高，看啥都想聊两句，话比平时多"),
+    ("心情一般", "心情一般，话少点，简洁为主，懒得啰嗦"),
+    ("懒洋洋的", "懒洋洋的，能少说一个字就少说一个字，短一点更好"),
+]
+
+
+# ═══════════════════════════════════
+#  跨轮重复抑制
+# ═══════════════════════════════════
+_recent_danmu_texts = []  # 最近普通弹幕原文（时序，先进先出）
+_RECENT_MAX = 30
+# 需要监测的高频句式
+_PATTERN_WATCH = ["又搁这", "不是吧", "老配方", "这我熟的", "这不就是", "太真实了", "比我还", "比你还"]
+_pattern_counts = {p: 0 for p in _PATTERN_WATCH}
+
 
 # 默认配置
 DEFAULT_CONFIG = {
@@ -164,16 +201,62 @@ def log(msg):
 
 
 # ═══════════════════════════════════
+#  弹幕内容日志（持久化到文件，供用户分析）
+# ═══════════════════════════════════
+_DANMU_LOG_PATH = None
+
+def _get_danmu_log_path():
+    """弹幕日志文件路径（跟 config.json 同目录）"""
+    global _DANMU_LOG_PATH
+    if _DANMU_LOG_PATH is not None:
+        return _DANMU_LOG_PATH
+    cfg_path = os.environ.get("ZAIGANMA_CONFIG", "")
+    if cfg_path:
+        _DANMU_LOG_PATH = os.path.join(os.path.dirname(cfg_path), "danmu_log.txt")
+    else:
+        _DANMU_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "danmu_log.txt")
+    return _DANMU_LOG_PATH
+
+def log_danmu(danmu_type, text):
+    """记录生成的弹幕到持久化日志文件 + 更新跨轮统计"""
+    try:
+        ts = time.strftime("%Y-%m-%d %H:%M")
+        line = f"[{ts}] [{danmu_type}] {text}\n"
+        path = _get_danmu_log_path()
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception:
+        pass
+    # 更新跨轮重复抑制统计（只统计普通弹幕）
+    if danmu_type == "普通":
+        _recent_danmu_texts.append(text)
+        if len(_recent_danmu_texts) > _RECENT_MAX:
+            _recent_danmu_texts.pop(0)
+            # 衰减 pattern 计数，避免永久封禁正常句式
+            for p in _pattern_counts:
+                if _pattern_counts[p] > 0:
+                    _pattern_counts[p] = max(0, _pattern_counts[p] - 1)
+        for pat in _PATTERN_WATCH:
+            if pat in text:
+                _pattern_counts[pat] = _pattern_counts.get(pat, 0) + 1
+
+
+# ═══════════════════════════════════
 #  系统空闲检测（Windows）
 # ═══════════════════════════════════
-import ctypes
-from ctypes import wintypes
+if sys.platform == 'win32':
+    import ctypes
+    from ctypes import wintypes
 
-class _LASTINPUTINFO(ctypes.Structure):
-    _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+    class _LASTINPUTINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+else:
+    _LASTINPUTINFO = None
 
 def _get_idle_seconds():
     """返回系统空闲秒数（Windows），非 Windows 返回 0"""
+    if _LASTINPUTINFO is None:
+        return 0
     try:
         info = _LASTINPUTINFO()
         info.cbSize = ctypes.sizeof(_LASTINPUTINFO)
@@ -211,7 +294,7 @@ def find_free_port(start=18900, max_try=100):
 #  弹幕项
 # ═══════════════════════════════════
 class DanmuItem:
-    __slots__ = ("text", "x", "y", "speed", "color", "width", "opacity", "track", "rainbow", "rainbow_offset")
+    __slots__ = ("text", "x", "y", "speed", "color", "width", "opacity", "track", "rainbow", "rainbow_offset", "framed")
 
     def __init__(self, text, x, y, speed, color, width):
         self.text = text
@@ -224,6 +307,7 @@ class DanmuItem:
         self.track = 0
         self.rainbow = False
         self.rainbow_offset = 0
+        self.framed = False
 
 
 # ═══════════════════════════════════
@@ -287,17 +371,17 @@ class DanmuWindow(QWidget):
         # 初始化映射（确保百分比参数生效）
         self.update_config(self.config)
 
-    def send(self, text: str, buddy_color: str = None):
-        self.msg_queue.put({"text": text, "buddy_color": buddy_color})
+    def send(self, text: str, buddy_color: str = None, framed: bool = False):
+        self.msg_queue.put({"text": text, "buddy_color": buddy_color, "framed": framed})
 
-    def send_stagger(self, text: str, buddy_color: str = None):
+    def send_stagger(self, text: str, buddy_color: str = None, framed: bool = False):
         """存入分散队列，由 _tick 逐步发放"""
-        self._stagger_queue.append({"text": text, "buddy_color": buddy_color})
+        self._stagger_queue.append({"text": text, "buddy_color": buddy_color, "framed": framed})
 
     def clear(self):
         self.msg_queue.put("__CLEAR__")
 
-    def _add_danmu(self, text: str, buddy_color: str = None):
+    def _add_danmu(self, text: str, buddy_color: str = None, framed: bool = False):
         # 修复：从实际弹幕列表重建 track_occupied，确保同步
         used = {item.track for item in self.danmu_list}
         for i in range(len(self.track_occupied)):
@@ -350,6 +434,7 @@ class DanmuWindow(QWidget):
         item = DanmuItem(text=text, x=float(self.screen_geo.width()), y=y,
                          speed=speed, color=color, width=tw)
         item.track = track
+        item.framed = framed
         # 彩色弹幕标记（必须在 item 创建之后）
         if rainbow_mode:
             item.rainbow = True
@@ -391,7 +476,7 @@ class DanmuWindow(QWidget):
                     continue
                 # 支持 dict 格式（含 buddy_color）和旧版字符串格式
                 if isinstance(msg, dict):
-                    self._add_danmu(msg["text"], msg.get("buddy_color"))
+                    self._add_danmu(msg["text"], msg.get("buddy_color"), msg.get("framed", False))
                 else:
                     self._add_danmu(msg)
             except queue.Empty:
@@ -469,6 +554,24 @@ class DanmuWindow(QWidget):
                 painter.setPen(c)
                 painter.drawText(QPoint(int(item.x), int(item.y)), item.text)
 
+                # 闲不住互动弹幕：画一个圆角矩形框
+                if item.framed:
+                    ascent = self.font_metrics.ascent()
+                    fh = self.font_metrics.height()
+                    rx = int(item.x) - 6
+                    ry = int(item.y) - ascent - 4
+                    rw = item.width + 12
+                    rh = fh + 8
+                    # 同色系半透明边框
+                    bc = QColor(item.color)
+                    bc.setAlpha(180)
+                    painter.setPen(bc)
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRoundedRect(rx, ry, rw, rh, 6, 6)
+                    # 重绘文字（在框的上层，保持原颜色）
+                    painter.setPen(c)
+                    painter.drawText(QPoint(int(item.x), int(item.y)), item.text)
+
     def update_config(self, new_config):
         """热更新窗口配置"""
         # 百分比参数映射到底层渲染值
@@ -532,8 +635,11 @@ class DanmuWindow(QWidget):
         self.track_occupied = [False] * tracks
 
         # 窗口直接铺满全屏（逻辑全屏），弹幕绘制范围由 tracks 和 top_margin 控制
-        _screen = QApplication.primaryScreen()
-        self.screen_geo = QRect(0, 0, _screen.geometry().width(), _screen.geometry().height())
+        screens = QApplication.screens()
+        geo = QRect()
+        for s in screens:
+            geo = geo.united(s.geometry())
+        self.screen_geo = QRect(geo.x(), geo.y(), geo.width(), geo.height())
         self.setGeometry(self.screen_geo)
 
         # 应用透明度
@@ -649,7 +755,7 @@ def is_valid_danmu(text):
     return True
 
 
-def call_llm(api_base, api_key, model, messages, max_tokens=120, temperature=0.9, max_retries=2, skip_reasoning=False):
+def call_llm(api_base, api_key, model, messages, max_tokens=120, temperature=0.9, max_retries=2, skip_reasoning=False, truncate_long=True):
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -681,7 +787,7 @@ def call_llm(api_base, api_key, model, messages, max_tokens=120, temperature=0.9
                     # 清理引号包裹
                     text = text.strip('"').strip("'").strip("「").strip("」")
                     # 如果内容还是太长（模型输出了思考过程），取最后一句有意义的话
-                    if len(text) > 50:
+                    if truncate_long and len(text) > 50:
                         text = _pick_last_sentence(text)
                     return text
             else:
@@ -883,6 +989,10 @@ def generate_danmu_text(cfg, img_b64, pre_analysis=None, force_buddy_id=None):
     styles = cfg.get("styles", ["casual"])
     if not styles:
         styles = ["casual"]
+    # 过滤已删除的风格（如夸夸、指指点点）
+    styles = [s for s in styles if s in STYLE_PROMPTS]
+    if not styles:
+        styles = ["casual"]
     style = random.choice(styles)
     style_prompt = STYLE_PROMPTS.get(style, STYLE_PROMPTS["casual"])
 
@@ -951,6 +1061,25 @@ def generate_danmu_text(cfg, img_b64, pre_analysis=None, force_buddy_id=None):
             else:
                 call_name = ""
 
+    # ═══ 普通弹幕：注入心情种子 ═══
+    # 伙伴弹幕走独立的 MVU 状态注入，普通弹幕用心情种子
+    if not buddy_mode:
+        mood_label, mood_desc = random.choice(MOODS)
+        style_prompt = f"{style_prompt}\n你现在的状态：{mood_desc}"
+        # ═══ 跨轮重复抑制 ═══
+        recent = list(_recent_danmu_texts[-5:])
+        hot_patterns = [(k, v) for k, v in sorted(_pattern_counts.items(), key=lambda x: -x[1]) if v >= 3]
+        if recent or hot_patterns:
+            hints = []
+            if recent:
+                hints.append("你最近说过的弹幕（别再说一样的了）：")
+                for t in recent:
+                    hints.append(f"- {t}")
+            if hot_patterns:
+                hot_str = "、".join([f'"{k}"({v}次)' for k, v in hot_patterns[:3]])
+                hints.append(f"注意：{hot_str} 最近出现太多，先别用了")
+            style_prompt += "\n\n" + "\n".join(hints)
+
     # 伙伴记忆弹幕：根据记忆概率走记忆流不走截图
     mem_ratio = int(cfg.get("buddyMemoryRatio", 30) or 30)
     if buddy_mode and buddy_name and random.random() * 100 < mem_ratio:
@@ -961,10 +1090,12 @@ def generate_danmu_text(cfg, img_b64, pre_analysis=None, force_buddy_id=None):
             if os.path.exists(facts_db):
                 import sqlite3
                 conn = sqlite3.connect(facts_db)
-                rows = conn.execute(
-                    "SELECT fact FROM facts ORDER BY id DESC LIMIT 50"
-                ).fetchall()
-                conn.close()
+                try:
+                    rows = conn.execute(
+                        "SELECT fact FROM facts ORDER BY id DESC LIMIT 50"
+                    ).fetchall()
+                finally:
+                    conn.close()
                 # 过滤有效记忆并随机取 5 条
                 all_memories = [r[0] for r in rows if r[0] and len(r[0]) > 10]
                 random.shuffle(all_memories)
@@ -1087,7 +1218,8 @@ def generate_danmu_text(cfg, img_b64, pre_analysis=None, force_buddy_id=None):
         ]
         analysis = call_llm(
             apis["vis_api_base"], apis["vis_api_key"], apis["vis_model"],
-            analysis_messages, max_tokens=200, temperature=0.1,
+            analysis_messages, max_tokens=300, temperature=0.1,
+            truncate_long=False,
         )
         # 兜底：分析结果过滤
         if not analysis or len(analysis) < 10:
@@ -1139,7 +1271,8 @@ def generate_danmu_text(cfg, img_b64, pre_analysis=None, force_buddy_id=None):
         if is_valid_danmu(text):
             return text, buddy_name, buddy_color
         log(f"弹幕内容无效（含思考痕迹），重试 ({_try+1}/3）")
-    return style_prompt.split("。")[0][-20:] + "~", buddy_name, buddy_color
+    fallback = random.choice(FALLBACK_DANMU)
+    return fallback, buddy_name, buddy_color
 
 
 # ═══════════════════════════════════
@@ -1172,7 +1305,8 @@ class DanmuEngine(threading.Thread):
             ]
             analysis = call_llm(
                 apis["vis_api_base"], apis["vis_api_key"], apis["vis_model"],
-                analysis_messages, max_tokens=200, temperature=0.1,
+                analysis_messages, max_tokens=300, temperature=0.1,
+                truncate_long=False,
             )
             if analysis and len(analysis) > 10:
                 import re
@@ -1296,6 +1430,7 @@ class DanmuEngine(threading.Thread):
                         for text in batch_texts:
                             if text and text not in last_texts:
                                 log(f"弹幕生成成功: {text}")
+                                log_danmu("普通", text)
                                 self.window.send_stagger(text)
                                 last_texts.append(text)
                                 if len(last_texts) > 20:
@@ -1333,10 +1468,12 @@ class DanmuEngine(threading.Thread):
                                 if buddy_name:
                                     text = f"{buddy_name}：{text}"
                                     log(f"弹幕生成成功: {text}")
-                                    self.window.send(text, buddy_color)
+                                    log_danmu("伙伴", text)
+                                    self.window.send_stagger(text, buddy_color)
                                 else:
                                     log(f"弹幕生成成功: {text}")
-                                    self.window.send(text)
+                                    log_danmu("伙伴", text)
+                                    self.window.send_stagger(text)
                                 last_texts.append(text)
                                 if len(last_texts) > 20:
                                     last_texts.pop(0)
@@ -1409,12 +1546,7 @@ class ZaiganmaHandler(BaseHTTPRequestHandler):
         params = parse_qs(parsed.query)
 
         if parsed.path == "/send":
-            text = params.get("text", [""])[0]
-            if text:
-                self.server.window.send(text)
-                self._json({"ok": True, "text": text})
-            else:
-                self._json({"ok": False, "error": "text required"}, 400)
+            self._json({"ok": False, "error": "请使用 POST 方法发送弹幕"}, 405)
 
         elif parsed.path == "/status":
             running = self.server.engine.running if self.server.engine else False
@@ -1476,8 +1608,10 @@ class ZaiganmaHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/send":
             text = data.get("text", "")
+            framed = data.get("framed", False)
+            buddy_color = data.get("buddy_color")
             if text:
-                self.server.window.send(text)
+                self.server.window.send(text, buddy_color=buddy_color, framed=framed)
                 self._json({"ok": True, "text": text})
             else:
                 self._json({"ok": False, "error": "text required"}, 400)
@@ -1561,8 +1695,9 @@ def _apply_config_reload(window, engine, data):
         new_size = window.config.get("font_size", "?")
         print(f"  [config_reload] font_size: {old_size} -> {new_size}")
         for k, v in data.items():
-            if k not in ("_visionApiKey", "_visionBaseUrl", "_danmuApiKey", "_danmuBaseUrl"):
-                window.config[k] = v
+            window.config[k] = v
+        # 同步更新 provider API 凭据（前端改了 provider 时重新从 provider-catalog.json 读取）
+        _load_provider_config(window.config)
         if engine and not engine.running:
             new_engine = DanmuEngine(window)
             new_engine.start()
@@ -1775,7 +1910,7 @@ def main():
 
 def _load_provider_config(config):
     """从 Hana provider-catalog.json 读取 API Key 和 Base URL"""
-    provider_catalog = os.path.join(os.path.expanduser("~"), ".hanako", "provider-catalog.json")
+    provider_catalog = os.path.join(_get_hana_home(), "provider-catalog.json")
     if not os.path.exists(provider_catalog):
         return
 

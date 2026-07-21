@@ -22,7 +22,11 @@ export async function execute({ text }, ctx) {
       };
     }
 
-    const resp = await appFetch(`/send?text=${encodeURIComponent(text)}`);
+    const resp = await appFetch('/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
     const data = await resp.json();
     return {
       content: [{ type: 'text', text: JSON.stringify({ ok: data.ok, text }) }],

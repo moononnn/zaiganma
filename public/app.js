@@ -5,6 +5,7 @@
   // ─── 工具函数 ───
   function $(id) { return document.getElementById(id); }
   function $$(sel) { return [].slice.call(document.querySelectorAll(sel)); }
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   function toast(msg, isErr) {
     var el = document.createElement('div');
@@ -263,7 +264,8 @@
         if (visVal === 'custom') {
           body.visionSource = 'custom';
           body.visionCustomBaseUrl = $('visionCustomUrl').value.trim();
-          body.visionCustomApiKey = $('visionCustomKey').value.trim();
+          var _visKey = $('visionCustomKey').value.trim();
+          if (_visKey) body.visionCustomApiKey = _visKey;
           body.visionCustomModel = $('visionCustomModel').value.trim();
         } else if (visVal.startsWith('hana:')) {
           body.visionSource = 'hana';
@@ -278,7 +280,8 @@
         } else if (dmVal === 'custom') {
           body.danmuSource = 'custom';
           body.danmuCustomBaseUrl = $('danmuCustomUrl').value.trim();
-          body.danmuCustomApiKey = $('danmuCustomKey').value.trim();
+          var _dmKey = $('danmuCustomKey').value.trim();
+          if (_dmKey) body.danmuCustomApiKey = _dmKey;
           body.danmuCustomModel = $('danmuCustomModel').value.trim();
         } else if (dmVal.startsWith('hana:')) {
           body.danmuSource = 'hana';
@@ -445,7 +448,8 @@
       if (visVal === 'custom') {
         body.visionSource = 'custom';
         body.visionCustomBaseUrl = $('visionCustomUrl').value.trim();
-        body.visionCustomApiKey = $('visionCustomKey').value.trim();
+        var _visKey = $('visionCustomKey').value.trim();
+        if (_visKey) body.visionCustomApiKey = _visKey;
         body.visionCustomModel = $('visionCustomModel').value.trim();
       } else if (visVal.startsWith('hana:')) {
         body.visionSource = 'hana';
@@ -459,7 +463,8 @@
       } else if (dmVal === 'custom') {
         body.danmuSource = 'custom';
         body.danmuCustomBaseUrl = $('danmuCustomUrl').value.trim();
-        body.danmuCustomApiKey = $('danmuCustomKey').value.trim();
+        var _dmKey = $('danmuCustomKey').value.trim();
+        if (_dmKey) body.danmuCustomApiKey = _dmKey;
         body.danmuCustomModel = $('danmuCustomModel').value.trim();
       } else if (dmVal.startsWith('hana:')) {
         body.danmuSource = 'hana';
@@ -575,8 +580,8 @@
         html += '<div class="buddy-avatar' + frameCls + '" style="background:' + (b.color || '#999') + '">' + initial + '</div>';
       }
       html += '<div class="buddy-info">';
-      html += '<div class="buddy-name">' + b.name + ' <span class="buddy-affection" title="' + heartLabels[hi] + '">' + hearts[hi] + '</span></div>';
-      html += '<div class="buddy-doing" title="' + doing + '">' + doing.substring(0, 40) + (doing.length > 40 ? '…' : '') + '</div>';
+      html += '<div class="buddy-name">' + escHtml(b.name) + ' <span class="buddy-affection" title="' + heartLabels[hi] + '">' + hearts[hi] + '</span></div>';
+      html += '<div class="buddy-doing" title="' + escHtml(doing) + '">' + escHtml(doing.substring(0, 40)) + (doing.length > 40 ? '…' : '') + '</div>';
       html += '<div class="buddy-vars">';
       html += '<div class="buddy-energy"><span style="font-size:11px;cursor:default" title="精力">\uD83D\uDD0B</span><div class="energy-bar-bg"><div class="energy-bar-fill" style="width:' + energy + '%;background:' + barColor + '"></div></div><span class="energy-num">' + energy + '</span></div>';
       html += '<span class="buddy-mood" title="' + moodLabels[mi] + '">' + moodEmojis[mi] + '</span>';
