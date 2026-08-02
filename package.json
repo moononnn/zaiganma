@@ -1,0 +1,12 @@
+{
+  "name": "zaiganma",
+  "version": "0.2.2",
+  "private": true,
+  "description": "在干嘛 — 桌面弹幕插件（测试入口）",
+  "type": "module",
+  "scripts": {
+    "test": "npm run test:js && npm run test:py",
+    "test:js": "node --experimental-test-module-mocks --test \"tests/js/*.test.js\"",
+    "test:py": "python -m unittest discover -s tests/py -v"
+  }
+}

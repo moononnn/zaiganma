@@ -149,13 +149,56 @@ MOODS = [
 
 
 # ═══════════════════════════════════
+#  弹幕质量准则（统一注入，防止模型套用高分句式）
+# ═══════════════════════════════════
+_QUALITY_RULES = (
+    "弹幕质量准则（必须遵守）：\n"
+    "1. 绝对禁止'比…还…'比喻句式（如'这X比Y还Z'）。想评价就直接说："
+    "'屏幕好亮''加载好慢''群消息真多''这图好糊'，不要绕弯子打比方。\n"
+    "2. 不要堆砌感叹词（好家伙、绝了、我服了、有点东西、泪目这类）。\n"
+    "3. 允许说废话，允许只发两三个字，不用每句都有梗，更别硬凑幽默。\n"
+    "4. 像真的在看别人用电脑、随手打几个字，想到什么说什么，自然一点。\n"
+)
+
+
+def _now_time_context():
+    """当前时段描述（北京时间），防止模型时间错乱（如上午说'今晚通宵'）"""
+    import datetime
+    now = datetime.datetime.now()
+    hour = now.hour
+    if hour < 6:
+        period = "深夜"
+    elif hour < 12:
+        period = "上午"
+    elif hour < 14:
+        period = "中午"
+    elif hour < 18:
+        period = "下午"
+    elif hour < 22:
+        period = "晚上"
+    else:
+        period = "深夜"
+    return f"现在是{period}（{hour}点）。"
+
+
+# ═══════════════════════════════════
 #  跨轮重复抑制
 # ═══════════════════════════════════
 _recent_danmu_texts = []  # 最近普通弹幕原文（时序，先进先出）
 _RECENT_MAX = 30
-# 需要监测的高频句式
-_PATTERN_WATCH = ["又搁这", "不是吧", "老配方", "这我熟的", "这不就是", "太真实了", "比我还", "比你还"]
-_pattern_counts = {p: 0 for p in _PATTERN_WATCH}
+# 需要监测的高频句式（名称, 正则, 提示语）。正则支持模板级匹配，
+# 例如 "比…还…" 能拦下 "比我""比视频""比手机壳" 等所有变体
+_PATTERN_WATCH = [
+    ("又搁这", r"又搁这|又搁|又在", "又搁这/又搁/又在"),
+    ("比字句", r"比[^，。！？\s]{0,8}还", "'比…还…'这种比喻句式"),
+    ("感叹词堆砌", r"好家伙|绝了|我服了|有点东西|太真实了|泪目", "感叹词（好家伙/绝了/我服了/有点东西）"),
+    ("这波操作", r"这波操作", "这波操作"),
+    ("不是吧", r"不是吧|不是在", "不是吧"),
+    ("老配方", r"老配方", "老配方"),
+    ("这我熟的", r"这我熟的", "这我熟的"),
+    ("这不就是", r"这不就是", "这不就是"),
+]
+_pattern_counts = {name: 0 for name, _, _ in _PATTERN_WATCH}
 
 
 # 默认配置
@@ -236,9 +279,10 @@ def log_danmu(danmu_type, text):
             for p in _pattern_counts:
                 if _pattern_counts[p] > 0:
                     _pattern_counts[p] = max(0, _pattern_counts[p] - 1)
-        for pat in _PATTERN_WATCH:
-            if pat in text:
-                _pattern_counts[pat] = _pattern_counts.get(pat, 0) + 1
+        for name, pattern, _ in _PATTERN_WATCH:
+            import re
+            if re.search(pattern, text):
+                _pattern_counts[name] = _pattern_counts.get(name, 0) + 1
 
 
 # ═══════════════════════════════════
@@ -288,6 +332,38 @@ def find_free_port(start=18900, max_try=100):
             if s.connect_ex(("127.0.0.1", port)) != 0:
                 return port
     return start
+
+
+# ═══════════════════════════════════
+#  引擎间隔/空闲判定（纯函数，可单测）
+# ═══════════════════════════════════
+def compute_cooldown(cfg, sent):
+    """计算普通弹幕等待间隔（秒）。random 模式取 [min, max]；sent==0 时减半且保底 5 秒"""
+    mode = cfg.get("intervalMode", "fixed")
+    if mode == "random":
+        min_s = max(5, cfg.get("intervalMin", 15))
+        max_s = max(min_s + 1, cfg.get("intervalMax", 60))
+        cooldown = random.randint(min_s, max_s)
+    else:
+        cooldown = cfg.get("intervalSec", 30)
+    if sent == 0:
+        cooldown = max(5, cooldown // 2)
+    return cooldown
+
+
+def compute_buddy_cooldown(cfg):
+    """计算伙伴弹幕间隔（秒）。random 模式取 [min, max]"""
+    b_mode = cfg.get("buddyIntervalMode", "fixed")
+    if b_mode == "random":
+        b_min = cfg.get("buddyIntervalMin", 60)
+        b_max = max(b_min + 1, cfg.get("buddyIntervalMax", 180))
+        return random.randint(b_min, b_max)
+    return cfg.get("buddyInterval", 90)
+
+
+def idle_should_pause(idle_sec, threshold):
+    """空闲自动暂停判定：空闲时长达到阈值（且阈值>0）时返回 True"""
+    return threshold > 0 and idle_sec >= threshold
 
 
 # ═══════════════════════════════════
@@ -443,22 +519,24 @@ class DanmuWindow(QWidget):
         self.danmu_list.append(item)
 
     def _tick(self):
-        # 调试：每隔 30 帧输出弹幕 yak 坐标范围和窗口尺寸
+        # 调试：低频输出弹幕坐标范围和窗口尺寸（300 帧 ≈ 10 秒一次，避免刷屏淹没真实日志）
         if not hasattr(self, '_tick_counter'):
             self._tick_counter = 0
         self._tick_counter += 1
-        if self._tick_counter % 30 == 0 and self.danmu_list:
+        if self._tick_counter % 300 == 0 and self.danmu_list:
             ys = [it.y for it in self.danmu_list]
             min_y, max_y = min(ys), max(ys)
             scr = self.screen_geo
             log(f"[dbg] danmu_list={len(self.danmu_list)} y_range={int(min_y)}~{int(max_y)} scr={scr.width()}x{scr.height()} tracks={len(self.track_occupied)} top_margin={self.config.get('top_margin')} font_size={self.config.get('font_size')}")
 
         # 第一步：更新位置 + 释放已移出屏幕的轨道（在分配新弹幕之前做）
+        # 注意：tracks 变小后旧弹幕的 track 可能越界，必须先做边界检查再释放，否则 IndexError
         remove_list = []
         for item in self.danmu_list:
             item.x -= item.speed
             if item.x + item.width < 0:
-                self.track_occupied[item.track] = False
+                if item.track < len(self.track_occupied):
+                    self.track_occupied[item.track] = False
                 remove_list.append(item)
         for item in remove_list:
             try:
@@ -486,7 +564,8 @@ class DanmuWindow(QWidget):
         max_screen = self.config.get("max_onscreen", 20)
         while len(self.danmu_list) > max_screen:
             oldest = self.danmu_list[0]
-            self.track_occupied[oldest.track] = False
+            if oldest.track < len(self.track_occupied):
+                self.track_occupied[oldest.track] = False
             self.danmu_list.pop(0)
 
         # 第三步：从分散队列以随机节奏投喂到消息队列
@@ -633,6 +712,12 @@ class DanmuWindow(QWidget):
 
         tracks = self.config.get("tracks", 10)
         self.track_occupied = [False] * tracks
+        # 清除轨道编号越界的旧弹幕，防止 _tick 移除时索引崩溃（轨道数调小后必须清理）
+        if self.danmu_list:
+            self.danmu_list = [it for it in self.danmu_list if it.track < tracks]
+        # 重新标记保留弹幕的轨道占用，防止新弹幕分配到同一轨道造成重叠
+        for it in self.danmu_list:
+            self.track_occupied[it.track] = True
 
         # 窗口直接铺满全屏（逻辑全屏），弹幕绘制范围由 tracks 和 top_margin 控制
         screens = QApplication.screens()
@@ -731,6 +816,8 @@ _THINKING_KEYWORDS = [
     "可以稍",
     "但是不",
     "这句话", "这句弹幕",
+    # 角色自述/任务陈述（模型把自己当成了被描述对象）
+    "你是一个", "作为AI", "请生成一条", "我是AI",
 ]
 
 
@@ -739,9 +826,9 @@ def is_valid_danmu(text):
     if not text or len(text) < 4 or len(text) > 50:
         return False
     t = text.lower()
-    # 关键词过滤
+    # 关键词过滤（关键词转小写再匹配，避免"作为AI"这类含大写的关键词漏网）
     for kw in _THINKING_KEYWORDS:
-        if kw in t:
+        if kw.lower() in t:
             return False
     # 以括号开头 → 内心独白
     if text.startswith("（") or text.startswith("("):
@@ -751,6 +838,13 @@ def is_valid_danmu(text):
         return False
     # 包含括号内心独白标记
     if "（" in text and "）" not in text:
+        return False
+    # 自指循环（模型在评论弹幕本身，截图里能看到弹幕浮层）
+    if "弹幕" in text:
+        return False
+    # 比字句硬过滤（"比X还Y"比喻句式，模型高频套用，直接丢弃重试）
+    import re
+    if re.search(r"比[^，。！？\s]{0,8}还", text):
         return False
     return True
 
@@ -1076,12 +1170,17 @@ def generate_danmu_text(cfg, img_b64, pre_analysis=None, force_buddy_id=None):
                 for t in recent:
                     hints.append(f"- {t}")
             if hot_patterns:
-                hot_str = "、".join([f'"{k}"({v}次)' for k, v in hot_patterns[:3]])
+                _hint_map = {name: hint for name, _, hint in _PATTERN_WATCH}
+                hot_str = "、".join([f"{_hint_map.get(k, k)}({v}次)" for k, v in hot_patterns[:3]])
                 hints.append(f"注意：{hot_str} 最近出现太多，先别用了")
             style_prompt += "\n\n" + "\n".join(hints)
 
+    # ═══ 弹幕质量准则 + 时间锚定（统一注入，防止套用高分句式与时间错乱）═══
+    style_prompt = f"{style_prompt}\n\n{_QUALITY_RULES}\n{_now_time_context()}"
+
     # 伙伴记忆弹幕：根据记忆概率走记忆流不走截图
-    mem_ratio = int(cfg.get("buddyMemoryRatio", 30) or 30)
+    # 注意：不能用 "get(...) or 30"——用户显式设置 0（0% 记忆概率）会被 or 吃掉变成 30
+    mem_ratio = max(0, int(cfg.get("buddyMemoryRatio", 30)))
     if buddy_mode and buddy_name and random.random() * 100 < mem_ratio:
         try:
             # 直接从本地 facts.db 读取记忆（不依赖 MCP）
@@ -1145,6 +1244,7 @@ def generate_danmu_text(cfg, img_b64, pre_analysis=None, force_buddy_id=None):
                 f"语气要自然，不用太正式。自然地称呼她。"
                 f"不要说'你还记得吗''我记得'之类的话——你就是记得。"
             )
+            memory_prompt += f"\n\n{_QUALITY_RULES}\n{_now_time_context()}"
 
             log(f"记忆弹幕 prompt 准备就绪，使用了 {len(memory_texts)} 条记忆")
             mem_messages = [
@@ -1287,6 +1387,8 @@ class DanmuEngine(threading.Thread):
         self._lock = threading.Lock()
         self.last_buddy_time = 0.0
         self.idle_paused = False
+        # 是否已等待过首次画面分析（只等一次，避免分析持续失败时每轮都卡等）
+        self._waited_first_analysis = False
         # 异步分析缓存
         self._analysis_cache = {"analysis": None, "angles": [], "img_b64": None}
         self._analysis_running = False
@@ -1360,7 +1462,7 @@ class DanmuEngine(threading.Thread):
                 else:
                     idle_sec = _get_idle_seconds()
                     idle_threshold = cfg.get("idleThreshold", 600)
-                    if idle_sec >= idle_threshold:
+                    if idle_should_pause(idle_sec, idle_threshold):
                         if not self.idle_paused:
                             self.idle_paused = True
                             log(f"系统已空闲 {idle_sec}s（阈值 {idle_threshold}s），自动暂停弹幕")
@@ -1391,6 +1493,31 @@ class DanmuEngine(threading.Thread):
                     if self._analysis_cache["analysis"]:
                         cfg["_last_analysis"] = self._analysis_cache["analysis"]
                         cfg["_last_angles"] = self._analysis_cache["angles"]
+
+                # ═══ 首轮等待：分析缓存还是兜底值时，等异步分析完成再生成 ═══
+                # 避免第一波弹幕基于"用户正在使用电脑"这种无信息兜底描述硬编（没话找话）
+                if not self._waited_first_analysis:
+                    self._waited_first_analysis = True
+                    if not cfg.get("_last_analysis") or cfg["_last_analysis"] == "用户正在使用电脑":
+                        if self._analysis_running:
+                            log("等待首次画面分析完成，确保第一波弹幕基于真实画面...")
+                            deadline = time.time() + 120
+                            while self._analysis_running and time.time() < deadline and self.running:
+                                time.sleep(1)
+                            with self._analysis_lock:
+                                if self._analysis_cache["analysis"]:
+                                    cfg["_last_analysis"] = self._analysis_cache["analysis"]
+                                    cfg["_last_angles"] = self._analysis_cache["angles"]
+                        # 分析超时/失败兜底：发一条通用弹幕池的，绝不用空描述硬编
+                        if not cfg.get("_last_analysis") or cfg["_last_analysis"] == "用户正在使用电脑":
+                            log("画面分析超时/失败，首轮使用兜底弹幕池")
+                            fallback = random.choice(FALLBACK_DANMU)
+                            self.window.send_stagger(fallback)
+                            log_danmu("普通", fallback)
+                            cooldown = compute_cooldown(cfg, 1)
+                            self.trigger.wait(timeout=cooldown)
+                            self.trigger.clear()
+                            continue
 
                 # 生成普通弹幕（使用当前缓存的分析结果）
                 danmu_enabled = cfg.get("danmuMode", True)
@@ -1444,13 +1571,7 @@ class DanmuEngine(threading.Thread):
                 # 没装闲不住时跳过伙伴弹幕
                 if original_buddy_mode and is_workvisit_available():
                     now = time.time()
-                    b_mode = cfg.get("buddyIntervalMode", "fixed")
-                    if b_mode == "random":
-                        b_min = cfg.get("buddyIntervalMin", 60)
-                        b_max = max(b_min + 1, cfg.get("buddyIntervalMax", 180))
-                        buddy_cooldown = random.randint(b_min, b_max)
-                    else:
-                        buddy_cooldown = cfg.get("buddyInterval", 90)
+                    buddy_cooldown = compute_buddy_cooldown(cfg)
                     elapsed = now - self.last_buddy_time
                     # 第一次启动时立即发，之后按间隔
                     if self.last_buddy_time == 0 or elapsed >= buddy_cooldown:
@@ -1483,17 +1604,8 @@ class DanmuEngine(threading.Thread):
                                 log(f"弹幕为空或重复" + (f" (text={text})" if text else ""))
                         self.last_buddy_time = now
 
-                # 计算等待间隔
-                mode = cfg.get("intervalMode", "fixed")
-                if mode == "random":
-                    min_s = max(5, cfg.get("intervalMin", 15))
-                    max_s = max(min_s + 1, cfg.get("intervalMax", 60))
-                    cooldown = random.randint(min_s, max_s)
-                else:
-                    cooldown = cfg.get("intervalSec", 30)
-
-                if sent == 0:
-                    cooldown = max(5, cooldown // 2)
+                # 计算等待间隔（纯函数：fixed/random + sent==0 减半）
+                cooldown = compute_cooldown(cfg, sent)
 
                 # 等待期间持续小批量生成弹幕（避免空白期）
                 if cooldown > 3 and cfg.get("_last_analysis"):
@@ -1542,6 +1654,7 @@ class DanmuEngine(threading.Thread):
 # ═══════════════════════════════════
 class ZaiganmaHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        global _engine_ref
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
 
@@ -1549,8 +1662,9 @@ class ZaiganmaHandler(BaseHTTPRequestHandler):
             self._json({"ok": False, "error": "请使用 POST 方法发送弹幕"}, 405)
 
         elif parsed.path == "/status":
-            running = self.server.engine.running if self.server.engine else False
-            idle_paused = self.server.engine.idle_paused if self.server.engine else False
+            engine = _engine_ref
+            running = engine.running if engine else False
+            idle_paused = engine.idle_paused if engine else False
             self._json({"ok": True, "running": running,
                         "idle_paused": idle_paused,
                         "queue_size": self.server.window.msg_queue.qsize(),
@@ -1569,19 +1683,19 @@ class ZaiganmaHandler(BaseHTTPRequestHandler):
             self._json({"ok": True})
 
         elif parsed.path == "/generate":
-            if self.server.engine:
-                self.server.engine.generate_now()
+            if _engine_ref:
+                _engine_ref.generate_now()
             self._json({"ok": True, "message": "生成请求已发送"})
 
         elif parsed.path == "/toggle":
-            engine = self.server.engine
+            # 统一通过全局引擎引用操作，避免 server.engine 引用过期导致双引擎并发
+            engine = _engine_ref
             if engine and engine.running:
                 engine.stop()
                 self._json({"ok": True, "running": False})
             elif engine:
-                # 重启引擎
-                self.server.engine = DanmuEngine(self.server.window)
-                self.server.engine.start()
+                # 重启引擎（加锁替换，防并发双引擎）
+                _replace_engine(self.server.window)
                 self._json({"ok": True, "running": True})
             else:
                 self._json({"ok": False, "error": "引擎未初始化"}, 500)
@@ -1618,7 +1732,7 @@ class ZaiganmaHandler(BaseHTTPRequestHandler):
 
         elif parsed.path == "/config/reload":
             # 把数据放进队列，由 Qt 主线程轮询处理
-            _put_config_reload(self.server.window, self.server.engine, data)
+            _put_config_reload(self.server.window, data)
             self._json({"ok": True, "message": "配置已重载"})
 
         elif parsed.path == "/config":
@@ -1661,9 +1775,9 @@ _config_reload_queue = queue.Queue()
 _config_reload_timer = None  # 保存定时器引用，防止 GC
 
 
-def _put_config_reload(window, engine, data):
+def _put_config_reload(window, data):
     """从 HTTP 子线程调用，将配置数据放入队列"""
-    _config_reload_queue.put((window, engine, data))
+    _config_reload_queue.put((window, data))
 
 
 def _start_config_reload_poller(window_ref):
@@ -1671,8 +1785,8 @@ def _start_config_reload_poller(window_ref):
     def poll():
         try:
             while True:
-                win, eng, dat = _config_reload_queue.get_nowait()
-                _apply_config_reload(win, eng, dat)
+                win, dat = _config_reload_queue.get_nowait()
+                _apply_config_reload(win, dat)
         except queue.Empty:
             pass
     # 每 200ms 检查一次队列
@@ -1684,8 +1798,9 @@ def _start_config_reload_poller(window_ref):
     return timer
 
 
-def _apply_config_reload(window, engine, data):
+def _apply_config_reload(window, data):
     """在 Qt 主线程执行配置重载"""
+    global _engine_ref
     if not window:
         print("  [config_reload] window 为空")
         return
@@ -1694,17 +1809,11 @@ def _apply_config_reload(window, engine, data):
         window.update_config(data)
         new_size = window.config.get("font_size", "?")
         print(f"  [config_reload] font_size: {old_size} -> {new_size}")
-        for k, v in data.items():
-            window.config[k] = v
         # 同步更新 provider API 凭据（前端改了 provider 时重新从 provider-catalog.json 读取）
         _load_provider_config(window.config)
-        if engine and not engine.running:
-            new_engine = DanmuEngine(window)
-            new_engine.start()
-            # 更新全局引擎引用
-            import sys as _sys
-            if hasattr(_sys.modules.get('__main__'), '_engine_ref'):
-                _sys.modules['__main__']._engine_ref = new_engine
+        # 引擎未运行时自动拉起（加锁替换，保证 /status /toggle 一致）
+        if _engine_ref and not _engine_ref.running:
+            _replace_engine(window)
     except Exception as e:
         import traceback
         print(f"  [config_reload] 错误: {e}")
@@ -1712,9 +1821,10 @@ def _apply_config_reload(window, engine, data):
 
 
 def start_http(host, port, window, engine):
-    server = HTTPServer((host, port), ZaiganmaHandler)
+    server = HTTPServer((host, port), ZaiganmaHandler)  # bind 成功后才继续
     server.window = window
     server.engine = engine
+    _report_port(port)  # 真正监听成功后再上报端口，避免 Node 读到未就绪端口
     server.serve_forever()
 
 
@@ -1781,6 +1891,21 @@ def create_tray(app, window: DanmuWindow, engine: DanmuEngine, config: dict, por
     return tray
 
 
+def _persist_config(config):
+    """把托盘快捷修改的配置写回 config.json（排除内部 _ 前缀键），保证重启不丢"""
+    cfg_path = os.environ.get("ZAIGANMA_CONFIG", "")
+    if not cfg_path:
+        return
+    try:
+        existing = load_json(cfg_path, {})
+        clean = {k: v for k, v in config.items() if not k.startswith("_")}
+        existing.update(clean)
+        save_json(cfg_path, existing)
+        log("托盘修改已持久化到 config.json")
+    except Exception as e:
+        log(f"配置持久化失败: {e}")
+
+
 def _set_interval(config, window, engine, val, tray):
     if val == "random":
         config["intervalMode"] = "random"
@@ -1792,6 +1917,7 @@ def _set_interval(config, window, engine, val, tray):
         window.config["intervalSec"] = val
         window.config["intervalMode"] = "fixed"
         window.send(f"间隔调整为 {val} 秒")
+    _persist_config(config)
 
 
 def _set_density(config, window, engine, val, tray):
@@ -1800,10 +1926,10 @@ def _set_density(config, window, engine, val, tray):
     window.update_config({"density": val})
     labels = {30: "低", 60: "中", 100: "高"}
     window.send(f"显示密度调整为 {labels.get(val, str(val))}")
+    _persist_config(config)
 
 
 def _toggle_engine(engine, action, tray):
-    global _engine_ref
     # 始终通过全局引用获取当前实际运行的引擎
     current = _engine_ref or engine
     if current.running:
@@ -1811,9 +1937,7 @@ def _toggle_engine(engine, action, tray):
         action.setText("启动弹幕")
         log("弹幕引擎已停止")
     else:
-        new_engine = DanmuEngine(current.window)
-        new_engine.start()
-        _engine_ref = new_engine
+        _replace_engine(current.window)
         action.setText("停止弹幕")
         log("弹幕引擎已启动")
 
@@ -1837,7 +1961,42 @@ def _quit(app, engine):
 # ═══════════════════════════════════
 #  入口
 # ═══════════════════════════════════
+def _report_port(port):
+    """把实际监听端口写到 config 同目录的 port.json（临时文件 + os.replace 原子写，避免半截 JSON）"""
+    cfg_path = os.environ.get("ZAIGANMA_CONFIG", "")
+    if not cfg_path:
+        return
+    try:
+        port_path = os.path.join(os.path.dirname(cfg_path), "port.json")
+        tmp_path = port_path + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump({"port": port}, f)
+        os.replace(tmp_path, port_path)
+    except Exception:
+        pass
+
+
+# ═══════════════════════════════════
+#  引擎替换（统一加锁，防并发双引擎）
+# ═══════════════════════════════════
+_engine_lock = threading.Lock()
+
+
+def _replace_engine(window):
+    """加锁创建新引擎并替换全局引用（检查+创建+替换整体原子，防 HTTP/托盘/配置重载并发双引擎）"""
+    global _engine_ref
+    with _engine_lock:
+        new_engine = DanmuEngine(window)
+        new_engine.start()
+        _engine_ref = new_engine
+    return new_engine
+
+
+# ═══════════════════════════════════
+#  入口
+# ═══════════════════════════════════
 def main():
+    global _engine_ref  # 必须声明：函数内赋值否则创建局部变量，模块级引用永远是 None
     parser = argparse.ArgumentParser(description="在干嘛 — 桌面弹幕小程序")
     parser.add_argument("--port", type=int, default=18900, help="HTTP API 端口")
     parser.add_argument("--config", type=str, default="", help="配置文件路径")
@@ -1860,6 +2019,8 @@ def main():
 
     config["port"] = args.port
     port = find_free_port(config["port"])
+    config["port"] = port  # 端口可能被占用跳号，写回实际值
+    # 端口上报移到 start_http：HTTPServer 真正 bind 成功后再写 port.json，避免竞态
 
     # 验证加载的模块路径（防止加载了旧版本）
     _self_file = os.path.abspath(__file__)
@@ -1887,7 +2048,7 @@ def main():
     engine.start()
     _engine_ref = engine
 
-    # HTTP API
+    # HTTP API（server bind 成功后由 start_http 上报端口）
     http_thread = threading.Thread(
         target=start_http, args=("127.0.0.1", port, window, engine), daemon=True
     )

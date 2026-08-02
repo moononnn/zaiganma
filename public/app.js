@@ -523,9 +523,11 @@
     if (!list || !data) return;
     
     // 尝试从闲不住 API 获取最新展板数据
+    // 注意：闲不住的路由挂在 /plugin/work-visit/ 下，不能用 /api/plugins/... 假路径
     var wvPartners = null;
     try {
-      var wvResp = await fetch('/api/plugins/work-visit/api/data' + AUTH, { signal: AbortSignal.timeout(3000) });
+      var wvUrl = baseUrl() + '/../work-visit/api/data';
+      var wvResp = await fetch(wvUrl + AUTH, { signal: AbortSignal.timeout(3000) });
       if (wvResp.ok) {
         var wvData = await wvResp.json();
         wvPartners = wvData.partners || null;

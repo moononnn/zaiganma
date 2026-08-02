@@ -16,9 +16,32 @@ const PROVIDER_CATALOG = join(HANA_HOME, 'provider-catalog.json');
 
 const PY_DIR = join(__dirname, 'python');
 const APP_PORT = 18900;
+const PORT_FILE = join(DATA_DIR, 'port.json');
 
 let ctx = {};
 let appProcess = null;
+
+// 实际端口：Python 小程序启动时若 18900 被占用会自动跳号并写入 port.json，这里动态读取避免失联
+let _actualPort = APP_PORT;
+function getAppPort() {
+  try {
+    if (existsSync(PORT_FILE)) {
+      const p = JSON.parse(readFileSync(PORT_FILE, 'utf-8')).port;
+      if (typeof p === 'number' && p > 0) _actualPort = p;
+    }
+  } catch (e) {}
+  return _actualPort;
+}
+function setAppPort(port) {
+  if (typeof port === 'number' && port > 0) {
+    _actualPort = port;
+    try {
+      if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+      writeFileSync(PORT_FILE, JSON.stringify({ port }), 'utf-8');
+    } catch (e) {}
+  }
+}
+export { getAppPort, setAppPort };
 
 // ═══════════════════════════════
 //  默认状态
@@ -55,7 +78,6 @@ let state = {
   shadowMode: 'outline',
   danmuColors: ['#FFFFFF', '#FF6B6B', '#51CF66', '#339AF0', '#FCC419', '#CC5DE8'],
   rainbowMode: false,
-  displayArea: 'full',
   // 显示设置（百分比值，0-100）
   density: 33,      // 显示密度 → tracks: 5~30, max_onscreen: 5~50
   speedPct: 30,     // 滚动速度 → speed: 0.5~8.0
@@ -112,7 +134,9 @@ function loadBuddiesFromAgents() {
       try {
         const cfgRaw = readFileSync(join(agentsPath, agentId, 'config.yaml'), 'utf-8');
         const m = cfgRaw.match(/^\s*name:\s*(.+)$/m);
-        const name = m ? m[1].trim() : agentId;
+        let name = m ? m[1].trim() : agentId;
+        // 清洗 YAML 字符串引号（name: "玥儿" → 玥儿）
+        name = name.replace(/^["']|["']$/g, '').trim() || agentId;
         let styleDesc = '';
         const descPath = join(agentsPath, agentId, 'description.md');
         if (existsSync(descPath)) {
@@ -137,24 +161,32 @@ function loadBuddiesFromAgents() {
 export function saveCfg(data) {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
   const existing = loadCfg();
-  // 如果提交的 buddies 为空，从 agents 目录补全
+  // 如果提交的 buddies 为空，从 agents 目录补全（合并而非替换：保留用户自定义伙伴和已存颜色）
   if (!data.buddies || Object.keys(data.buddies).length === 0) {
     const loaded = loadBuddiesFromAgents();
     if (Object.keys(loaded).length > 0) {
-      data.buddies = loaded;
+      data.buddies = { ...(existing.buddies || {}), ...loaded };
+      // agents 重扫会重置颜色，回填用户已保存的自定义颜色
+      for (const [bid, bv] of Object.entries(existing.buddies || {})) {
+        if (data.buddies[bid] && bv.color) data.buddies[bid].color = bv.color;
+      }
     }
   }
   // 处理伙伴颜色更新（保留完整的伙伴数据，只改颜色）
   if (data._buddyColors) {
     if (!existing.buddies) existing.buddies = {};
     for (const [bid, color] of Object.entries(data._buddyColors)) {
-      if (state.buddies[bid]) state.buddies[bid].color = color;
-      // 从默认配置中取完整的伙伴数据
-      const fullBuddy = state.buddies[bid];
-      if (fullBuddy) {
-        existing.buddies[bid] = { ...fullBuddy };
-        existing.buddies[bid].color = color;
+      // 从 agents 目录兜底补全伙伴数据（state.buddies 可能未加载或已过期）
+      let fullBuddy = state.buddies[bid];
+      if (!fullBuddy) {
+        const fromAgents = loadBuddiesFromAgents();
+        fullBuddy = fromAgents[bid] || { name: bid, color: '#FFFFFF', styleDesc: '' };
       }
+      fullBuddy = { ...fullBuddy, color };
+      state.buddies[bid] = fullBuddy;
+      existing.buddies[bid] = fullBuddy;
+      // 同步更新本次提交的 data.buddies，否则 merged 阶段会用补全的默认色覆盖新颜色
+      if (data.buddies && data.buddies[bid]) data.buddies[bid] = fullBuddy;
     }
     delete data._buddyColors;
   }
@@ -179,7 +211,7 @@ export function saveCfg(data) {
 /** 同步配置到正在运行的 Python 小程序，返回是否成功 */
 export async function syncConfigToApp() {
   try {
-    const resp = await fetch(`http://127.0.0.1:${APP_PORT}/config/reload`, {
+    const resp = await fetch(`http://127.0.0.1:${getAppPort()}/config/reload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(state),
@@ -344,7 +376,7 @@ export { loadCfg };
 //  HTTP 通信辅助
 // ═══════════════════════════════
 export async function appFetch(path, opts = {}) {
-  const url = `http://127.0.0.1:${APP_PORT}${path}`;
+  const url = `http://127.0.0.1:${getAppPort()}${path}`;
   const resp = await fetch(url, {
     ...opts,
     signal: AbortSignal.timeout(5000),
@@ -353,17 +385,31 @@ export async function appFetch(path, opts = {}) {
 }
 
 // ═══════════════════════════════
-//  依赖检查
+//  依赖检查（30 秒缓存，避免每次 /api/status 都 spawn 4 个 Python 进程）
 // ═══════════════════════════════
+let _depsCache = null;
+let _depsCacheTime = 0;
+const DEPS_CACHE_MS = 30000;
+
 export async function checkDeps() {
+  // 只缓存成功结果：依赖刚装好时页面能立即反映，不用等缓存过期
+  if (_depsCache && _depsCache.ok && Date.now() - _depsCacheTime < DEPS_CACHE_MS) {
+    return _depsCache;
+  }
   const python = detectPython();
   const deps = ['mss', 'PIL', 'httpx', 'PyQt6'];
   for (const dep of deps) {
     const p = spawn(python, ['-c', `import ${dep}`], { stdio: 'ignore', windowsHide: true });
     const code = await new Promise(r => p.on('exit', r));
-    if (code !== 0) return { ok: false, missing: dep };
+    if (code !== 0) {
+      _depsCache = { ok: false, missing: dep };
+      _depsCacheTime = Date.now();
+      return _depsCache;
+    }
   }
-  return { ok: true };
+  _depsCache = { ok: true };
+  _depsCacheTime = Date.now();
+  return _depsCache;
 }
 
 // ═══════════════════════════════
@@ -386,6 +432,9 @@ export default class ZaiganmaPlugin {
           for (const [bid, bv] of Object.entries(v)) {
             if (state.buddies[bid]) {
               Object.assign(state.buddies[bid], bv);
+            } else {
+              // 不在默认伙伴里的自定义伙伴（幽灵伙伴）：完整加入，否则重启即丢
+              state.buddies[bid] = { ...bv };
             }
           }
         } else {
@@ -403,14 +452,15 @@ export default class ZaiganmaPlugin {
     if (Array.isArray(state.nicknames)) state.nicknames = state.nicknames.filter(s => s && s.trim());
     if (Array.isArray(state.buddyNicknames)) state.buddyNicknames = state.buddyNicknames.filter(s => s && s.trim());
 
-    // 动态加载伙伴列表
+    // 动态加载伙伴列表（合并磁盘配置中的自定义伙伴，防止幽灵伙伴跨重启丢失）
     const agentsBuddies = loadBuddiesFromAgents();
-    // 保留用户已选过的颜色
-    if (state.buddies) {
-      for (const [bid, bv] of Object.entries(state.buddies)) {
-        if (agentsBuddies[bid] && bv.color) {
-          agentsBuddies[bid].color = bv.color;
-        }
+    for (const [bid, bv] of Object.entries(state.buddies)) {
+      if (agentsBuddies[bid]) {
+        // agents 目录里的伙伴：保留用户已选颜色
+        if (bv.color) agentsBuddies[bid].color = bv.color;
+      } else {
+        // 不在 agents 目录的自定义伙伴（幽灵伙伴）：完整保留
+        agentsBuddies[bid] = bv;
       }
     }
     state.buddies = agentsBuddies;
