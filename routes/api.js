@@ -24,6 +24,16 @@ function json(data, status = 200) {
   });
 }
 
+// ═══════════════════════════════
+//  助手 ID 白名单（防路径穿越 / 原型污染）
+// ═══════════════════════════════
+const _RESERVED_IDS = new Set(['constructor', 'prototype', '__proto__']);
+export function isValidAgentId(id) {
+  if (typeof id !== 'string' || id.length === 0 || id.length > 64) return false;
+  if (_RESERVED_IDS.has(id)) return false;
+  return /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(id);
+}
+
 export default async function registerRoutes(app, ctx = {}) {
   ctx.log?.info?.('[zaiganma] 路由已注册');
 
@@ -710,6 +720,7 @@ export default async function registerRoutes(app, ctx = {}) {
   // ── 头像代理 ──
   app.get('/api/avatar/:agentId', (c) => {
     const agentId = c.req.param('agentId');
+    if (!isValidAgentId(agentId)) return new Response('', { status: 404 });
     const HANA_HOME = process.env.HANA_HOME || join(homedir(), '.hanako');
     const avatarPath = join(HANA_HOME, 'agents', agentId, 'avatars', 'agent.png');
     if (existsSync(avatarPath)) {

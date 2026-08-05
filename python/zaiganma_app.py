@@ -893,12 +893,29 @@ def call_llm(api_base, api_key, model, messages, max_tokens=120, temperature=0.9
     return None
 
 
+def _decrypt_key(stored):
+    """解密 Node 端混淆存储的 API Key（XOR + base64，enc: 前缀，向后兼容明文）"""
+    if not stored:
+        return ""
+    if not stored.startswith("enc:"):
+        return stored
+    salt = b"zaiganma-key-obfuscation-2026"
+    try:
+        buf = base64.b64decode(stored[4:])
+        out = bytearray(len(buf))
+        for i, b in enumerate(buf):
+            out[i] = b ^ salt[i % len(salt)]
+        return out.decode("utf-8", errors="replace")
+    except Exception:
+        return stored
+
+
 def build_api_config(cfg):
     """从配置构建截图模型和文案模型的 API 参数"""
     # 截图模型
     vis_source = cfg.get("visionSource", cfg.get("vision_source", "hana"))
     if vis_source == "custom":
-        vis_api_key = cfg.get("visionCustomApiKey", cfg.get("vision_custom_api_key", ""))
+        vis_api_key = _decrypt_key(cfg.get("visionCustomApiKey", cfg.get("vision_custom_api_key", "")))
         vis_api_base = cfg.get("visionCustomBaseUrl", cfg.get("vision_custom_base_url", ""))
         vis_model = cfg.get("visionCustomModel", cfg.get("vision_custom_model", ""))
     else:
@@ -913,7 +930,7 @@ def build_api_config(cfg):
         dm_api_base = vis_api_base
         dm_model = vis_model
     elif dm_source == "custom":
-        dm_api_key = cfg.get("danmuCustomApiKey", cfg.get("danmu_custom_api_key", ""))
+        dm_api_key = _decrypt_key(cfg.get("danmuCustomApiKey", cfg.get("danmu_custom_api_key", "")))
         dm_api_base = cfg.get("danmuCustomBaseUrl", cfg.get("danmu_custom_base_url", ""))
         dm_model = cfg.get("danmuCustomModel", cfg.get("danmu_custom_model", ""))
     else:

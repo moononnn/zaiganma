@@ -11,6 +11,44 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const HANA_HOME = process.env.HANA_HOME || join(homedir(), '.hanako');
 const DATA_DIR = join(HANA_HOME, 'data', 'zaiganma');
 const CFG_PATH = join(DATA_DIR, 'config.json');
+
+// ═══════════════════════════════
+//  API Key 混淆存储（XOR + base64，enc: 前缀，向后兼容明文）
+//  与 Python 端 zaiganma_app.py 的 _decrypt_key 保持同算法
+// ═══════════════════════════════
+const _OBF_SALT = Buffer.from('zaiganma-key-obfuscation-2026', 'utf-8');
+
+function encryptKey(plain) {
+  if (!plain) return '';
+  const buf = Buffer.from(plain, 'utf-8');
+  const out = Buffer.alloc(buf.length);
+  for (let i = 0; i < buf.length; i++) {
+    out[i] = buf[i] ^ _OBF_SALT[i % _OBF_SALT.length];
+  }
+  return 'enc:' + out.toString('base64');
+}
+
+function decryptKey(stored) {
+  if (!stored) return '';
+  if (!stored.startsWith('enc:')) return stored; // 向后兼容明文
+  const buf = Buffer.from(stored.slice(4), 'base64');
+  const out = Buffer.alloc(buf.length);
+  for (let i = 0; i < buf.length; i++) {
+    out[i] = buf[i] ^ _OBF_SALT[i % _OBF_SALT.length];
+  }
+  return out.toString('utf-8');
+}
+
+// 写盘前加密 key 字段（已加密的跳过，避免重复加密）
+function obfuscateKeys(cfg) {
+  for (const k of ['visionCustomApiKey', 'danmuCustomApiKey']) {
+    const v = cfg[k];
+    if (v && !v.startsWith('enc:')) cfg[k] = encryptKey(v);
+  }
+  return cfg;
+}
+
+export { encryptKey, decryptKey };
 const MODELS_JSON = join(HANA_HOME, 'models.json');
 const PROVIDER_CATALOG = join(HANA_HOME, 'provider-catalog.json');
 
@@ -135,7 +173,7 @@ function loadBuddiesFromAgents() {
         const cfgRaw = readFileSync(join(agentsPath, agentId, 'config.yaml'), 'utf-8');
         const m = cfgRaw.match(/^\s*name:\s*(.+)$/m);
         let name = m ? m[1].trim() : agentId;
-        // 清洗 YAML 字符串引号（name: "玥儿" → 玥儿）
+        // 清洗 YAML 字符串引号（name: "某用户" → 某用户）
         name = name.replace(/^["']|["']$/g, '').trim() || agentId;
         let styleDesc = '';
         const descPath = join(agentsPath, agentId, 'description.md');
@@ -201,7 +239,7 @@ export function saveCfg(data) {
   }
 
   const merged = { ...existing, ...data };
-  writeFileSync(CFG_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+  writeFileSync(CFG_PATH, JSON.stringify(obfuscateKeys(merged), null, 2), 'utf-8');
   // 更新内存
   for (const [k, v] of Object.entries(data)) {
     if (k in state) state[k] = v;
@@ -480,7 +518,7 @@ export default class ZaiganmaPlugin {
             // 持久化到 config.json
             const cfg = loadCfg();
             cfg.userName = displayName;
-            writeFileSync(CFG_PATH, JSON.stringify(cfg, null, 2), 'utf-8');
+            writeFileSync(CFG_PATH, JSON.stringify(obfuscateKeys(cfg), null, 2), 'utf-8');
             ctx.log?.info?.('[zaiganma] 已读取用户名:', displayName);
           }
         }
