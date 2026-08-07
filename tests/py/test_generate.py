@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """在干嘛 — 弹幕生成逻辑测试（mock 掉 AI 调用，覆盖一步法/两步法/伙伴/记忆流）"""
 import os
 import sqlite3
@@ -22,7 +22,7 @@ def base_cfg(**overrides):
         "danmuSource": "same",
         "styles": ["casual"],
         "danmuCount": 1,
-        "userName": "玥儿",
+        "userName": "大小姐",
         "nicknames": [],
         "buddyNicknames": [],
         "buddyMode": False,

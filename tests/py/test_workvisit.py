@@ -115,17 +115,17 @@ class TestLoadWorkvisitVars(BaseWorkVisitTest):
 class TestGetBuddyMvuContext(BaseWorkVisitTest):
     def test_with_vars_returns_state_text(self):
         self.write_data({"hanako": {"variables": {"energy": 90, "mood": 90, "affection": 90}}})
-        ctx = app.get_buddy_mvu_context("hanako", "玥儿")
+        ctx = app.get_buddy_mvu_context("hanako", "大小姐")
         self.assertIsNotNone(ctx)
-        self.assertIn("玥儿", ctx)
+        self.assertIn("大小姐", ctx)
         self.assertIn("很亲密", ctx)
 
     def test_without_vars_returns_none(self):
         self.write_data({"hanako": {"variables": {}}})
-        self.assertIsNone(app.get_buddy_mvu_context("hanako", "玥儿"))
+        self.assertIsNone(app.get_buddy_mvu_context("hanako", "大小姐"))
 
     def test_empty_buddy_id_returns_none(self):
-        self.assertIsNone(app.get_buddy_mvu_context("", "玥儿"))
+        self.assertIsNone(app.get_buddy_mvu_context("", "大小姐"))
 
 
 if __name__ == "__main__":

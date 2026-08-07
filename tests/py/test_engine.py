@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """在干嘛 — 引擎层测试（间隔纯函数 / call_llm / 分析兜底链 / 托盘持久化 / 主循环集成）
 不发起真实网络：httpx.post、截图、AI 调用全部 mock
 """
@@ -134,7 +134,7 @@ class TestAnalysisFallback(unittest.TestCase):
                 "visionSource": "hana", "visionModelId": "vm",
                 "_visionApiKey": "k", "_visionBaseUrl": "http://x",
                 "danmuSource": "hana", "danmuModelId": "dm",
-                "styles": ["casual"], "userName": "玥儿", "nicknames": [],
+                "styles": ["casual"], "userName": "大小姐", "nicknames": [],
                 "buddyNicknames": [], "buddyMode": False, "selectedBuddies": [],
                 "buddies": {}, "buddyMemoryRatio": 0,
             }
@@ -159,7 +159,7 @@ class TestAnalysisFallback(unittest.TestCase):
                 "visionSource": "hana", "visionModelId": "vm",
                 "_visionApiKey": "k", "_visionBaseUrl": "http://x",
                 "danmuSource": "hana", "danmuModelId": "dm",
-                "styles": ["casual"], "userName": "玥儿", "nicknames": [],
+                "styles": ["casual"], "userName": "大小姐", "nicknames": [],
                 "buddyNicknames": [], "buddyMode": False, "selectedBuddies": [],
                 "buddies": {}, "buddyMemoryRatio": 0,
             }

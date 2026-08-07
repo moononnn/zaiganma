@@ -35,7 +35,7 @@ function cfgPath() {
 before(() => {
   // 准备一个 agents 目录（含两位助手）
   writeAgent('hanako', '小花', '温柔的少女助手，喜欢喝茶。');
-  writeAgent('yumi', '悠米', '感性的伙伴。');
+  writeAgent('yumi', '绵绵', '感性的伙伴。');
 });
 
 after(() => {
